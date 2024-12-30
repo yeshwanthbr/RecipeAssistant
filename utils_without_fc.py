@@ -22,17 +22,14 @@ def initialize_conversation():
     system_message = f"""
 
     You are an intelligent cuisine and recipe expert and your goal is to find the best recipe for a user.
-    You are trying to understand the user's requirement for the recipe - dietaryPreference, cuisine, prepTimeMinutes, Carb, Protein, Fat, spiceLevel
-    You need to ask relevant questions and understand the user mood and requirements by analysing the user's responses. Ask only questions related to these keys. 
-    After understanding their requirements, you'll use a function call to suggest the top 3 recipes. Recommend these recipes and answer any user's query about them.
-    You final objective is to find the values for the different keys (dietaryPreference, cuisine, prepTimeMinutes, Carb, Protein, Fat, spiceLevel) and call the function. Do not respond to the user with these values in technical terms
+    You need to ask relevant questions and understand the user mood and requirements by analysing the user's responses.
+    You final objective is to find the values for the different keys (dietaryPreference, cuisine, prepTimeMinutes, Carb, Protein, Fat, spiceLevel) in the json format below.
     The values for these keys determine the users profile
     Values for keys 'Carb', 'Protein', 'Fat', 'spiceLevel' should be High, Medium, Low based on the importance of the corresponding keys, as stated by user.
     The values for the key 'dietaryPreference' should be one or more of the following: 'Vegan', 'Vegetarian', 'Gluten-Free', 'Keto', 'NoPreference'
     The values for key 'cuisine' should be one of the following: 'Italian', 'Mexican', 'Indian', 'Chinese', 'Thai', 'Mediterranean', 'Japanese', 'American', 'French', 'Greek', 'Spanish', 'Middle-Eastern', 'Korean', 'Vietnamese', 'British', 'Caribbean', 'German', 'African', 'Latin-American', 'Scandinavian', 'Eastern-European', 'Australian', 'Canadian', 'NoPreference'
     The value for 'prepTimeMinutes' should be a numerical value extracted from the user's response.
     The values currently in the string provided are only representative values.
-    If the user says, I dont care, I dont mind or something like that for the fields 'Carb', 'Protein', 'Fat', 'spiceLevel', you can set the value to 'NoPreference'.
 
     {delimiter}Here are some instructions around the values for the different keys. If you do not follow this, you'll be heavily penalised.
     - The values for keys 'Carb', 'Protein', 'Fat', 'spiceLevel', should strictly be either 'low', 'medium', or 'high' based on the importance of the corresponding keys, as stated by user.
@@ -59,8 +56,7 @@ def initialize_conversation():
     {delimiter}Thought 3: Check if you have correctly updated the values for the different keys in the python dictionary.
     If you are not confident about any of the values, ask clarifying questions. {delimiter}
 
-    Follow the above chain of thoughts and capture all the details and call the function to get the top 3 recipes.\n
-    Your scope is only limited to understanding the user's requirements and calling the function to get the top 3 recipes. \n
+    Follow the above chain of thoughts and only output the final updated python dictionary. \n
 
     {delimiter}
     User: "Hi, I am looking for healthy meal options."
@@ -83,89 +79,14 @@ def initialize_conversation():
     # conversation = system_message
     return conversation
 
-get_recipe_functions = [
-    {
-        "name": "get_top_3_recipes",
-        "description": "This function takes in the user preferences and returns the top 3 recipes that match the user's preferences.",
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "dietaryPreference": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    },
-                    "description": "List of dietary preferences such as Vegan, Vegetarian, Gluten-Free, Keto, NoPreference"
-                },
-                "cuisine": {
-                    "type": "string",
-                    "description": "Preferred cuisine type such as Italian, Chinese, Indian, etc."
-                },
-                "prepTimeMinutes": {
-                    "type": "integer",
-                    "description": "Maximum preparation time in minutes."
-                },
-                "Carb": {
-                    "type": "string",
-                    "description": "Preferred carb level - Low, Medium, High, NoPreference"
-                },
-                "Protein": {
-                    "type": "string",
-                    "description": "Preferred protein level - Low, Medium, High, NoPreference"
-                },
-                "Fat": {
-                    "type": "string",
-                    "description": "Preferred fat source level - Low, Medium, High, NoPreference"
-                },
-                "spiceLevel": {
-                    "type": "string",
-                    "description": "Preferred spice level - Low, Medium, High, NoPreference"
-                }
-            },
-            "required": [
-                "dietaryPreference", 
-                "cuisine", 
-                "prepTimeMinutes", 
-                "Carb", 
-                "Protein", 
-                "Fat", 
-                "spiceLevel"
-            ]
-        }
-    }
-]
-
-def get_top_3_recipes(user_preferences):
-    print('callingggggg_user_preferences', user_preferences)
-    filtered_recipes = pd.read_csv('recipes.csv')
-    filtered_recipes = filtered_recipes[
-        (filtered_recipes['prepTimeMinutes'] <= user_preferences['prepTimeMinutes']) &
-        (filtered_recipes['cuisine'] == user_preferences['cuisine'])
-    ]
-    filtered_recipes['score'] = 0
-
-    # Scoring recipes based on dietary preferences and nutrition
-    filtered_recipes['score'] += filtered_recipes['dietaryPreference'].apply(
-        lambda x: 1 if 'NoPreference' in user_preferences['dietaryPreference'] or all(d in x for d in user_preferences['dietaryPreference']) else 0
-    )
-    for key in ['Carb', 'Protein', 'Fat', 'spiceLevel']:
-        filtered_recipes['score'] += filtered_recipes[key].apply(
-            lambda x: 1 if user_preferences[key].lower() == x.lower() else 0
-        )
-
-    # Return top 3 recipes
-    top_recipes = filtered_recipes.sort_values('score', ascending=False).head(3)
-    return top_recipes.to_dict(orient='records')
-
-
 # Function to get chat model completions (communication with OpenAI)
-def get_chat_model_completions(messages, functions=None):
+def get_chat_model_completions(messages):
+    
     response = openai.chat.completions.create(
-            model=MODEL,
-            messages=messages,
-            functions=functions
-            )
-    return response.choices[0].message
+        model=MODEL,
+        messages=messages
+    )
+    return response.choices[0].message.content
 
 # Moderation check for user input (content moderation)
 def moderation_check(user_input):
@@ -272,7 +193,6 @@ def extract_dictionary_from_string(string):
 def get_filtered_recipes(user_preferences):
     print('callingggggg', user_preferences)
     filtered_recipes = pd.read_csv('recipes.csv')
-    print(user_preferences)
     # Filter based on cuisine and prep time
     filtered_recipes = filtered_recipes[(filtered_recipes['prepTimeMinutes'] <= user_preferences['prepTimeMinutes']) & (filtered_recipes['cuisine'] == user_preferences['cuisine'])]
     filtered_recipes['score'] = 0
@@ -285,17 +205,17 @@ def get_filtered_recipes(user_preferences):
     filtered_recipes['score'] += filtered_recipes['spiceLevel'].apply(lambda x: 1 if 'NoPreference' in user_preferences['spiceLevel'] or user_preferences['spiceLevel'].lower() != x.lower() else 0)
     # return recipes with top 3 scores
     filtered_recipes = filtered_recipes.sort_values('score', ascending=False).head(3)
-    print('-------------------')
-    print(filtered_recipes)
     return filtered_recipes.to_json(orient='records')
 
 def recommendation_validation(recommendation):
-    print(recommendation)
+    data = json.loads(recommendation)
+    print('Before validation', data)
     validated = []
-    for r in recommendation:
-        if r['score'] >= 2:
-            validated.append(r)
-    print(validated)
+    for i in range(len(data)):
+        if data[i]['score'] > 2:
+            validated.append(data[i])
+
+    print('After validation', validated)
     return validated
 
 def initialize_conv_reco(recipes):
@@ -304,10 +224,9 @@ def initialize_conv_reco(recipes):
     solve the user queries about any recipe from the catalogue: {recipes}.\
     You should keep the user profile in mind while answering the questions.\
 
-    Start with a brief summary of each recipe in the following format, share all 3 recipe options provided to you separated by new line character.
+    Start with a brief summary of each recipe in the following format:
     1. <Recipe Name> : <Description>, <Nutirional Value>, <prepTime>
     2. <Recipe Name> : <Description>, <Nutirional Value>, <prepTime>
-    3. <Recipe Name> : <Description>, <Nutirional Value>, <prepTime>
     Ensure you have provided the correct information for each recipe and the overall response message.
     """
     conversation = [{"role": "system", "content": system_message }]
