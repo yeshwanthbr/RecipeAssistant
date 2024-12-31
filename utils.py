@@ -150,7 +150,7 @@ def get_top_3_recipes(user_preferences):
     )
     for key in ['Carb', 'Protein', 'Fat', 'spiceLevel']:
         filtered_recipes['score'] += filtered_recipes[key].apply(
-            lambda x: 1 if user_preferences[key].lower() == x.lower() else 0
+            lambda x: 1 if 'NoPreference' in user_preferences[key] or user_preferences[key].lower() == x.lower() else 0
         )
 
     # Return top 3 recipes
